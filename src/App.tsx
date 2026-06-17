@@ -1,7 +1,6 @@
 import {
   Braces,
   CalendarClock,
-  Clipboard,
   Code2,
   Columns3,
   Copy,
@@ -10,6 +9,7 @@ import {
   Globe2,
   Hash,
   KeyRound,
+  Layers3,
   ListChecks,
   Mail,
   Play,
@@ -18,7 +18,8 @@ import {
   Send,
   Table2,
   TerminalSquare,
-  TextCursorInput,
+  Trash2,
+  UsersRound,
   Wand2,
 } from 'lucide-react';
 import { FormEvent, ReactNode, useMemo, useState } from 'react';
@@ -35,6 +36,8 @@ type ToolId =
   | 'api'
   | 'csv'
   | 'sql'
+  | 'hubspot'
+  | 'bulk'
   | 'jira'
   | 'email';
 
@@ -43,9 +46,22 @@ type ApiHeader = {
   value: string;
 };
 
+type ApiHistoryItem = {
+  method: string;
+  url: string;
+  status: string;
+  createdAt: string;
+};
+
 type DiffLine = {
   type: 'same' | 'add' | 'remove';
   text: string;
+};
+
+type TimeZoneItem = {
+  label: string;
+  zone: string;
+  note: string;
 };
 
 const sampleJson = '{"company":"Acme","contacts":[{"email":"ana@example.com","role":"Admin"}],"active":true}';
@@ -67,6 +83,8 @@ const tools: Array<{
   { id: 'timezone', title: 'Time Zones', section: 'Utilities', description: 'Convert work times', icon: <CalendarClock /> },
   { id: 'regex', title: 'Regex Tester', section: 'Data', description: 'Match patterns quickly', icon: <Search /> },
   { id: 'api', title: 'API Tester', section: 'API', description: 'Send REST requests', icon: <Send /> },
+  { id: 'hubspot', title: 'HubSpot Duplicates', section: 'HubSpot', description: 'Find duplicate records', icon: <UsersRound /> },
+  { id: 'bulk', title: 'Bulk Update Builder', section: 'HubSpot', description: 'CSV to update payload', icon: <Layers3 /> },
   { id: 'csv', title: 'CSV Preview', section: 'Data', description: 'Inspect CSV rows', icon: <Table2 /> },
   { id: 'sql', title: 'SQL Formatter', section: 'Data', description: 'Clean up SQL queries', icon: <TerminalSquare /> },
   { id: 'jira', title: 'Jira Assistant', section: 'Writing', description: 'Draft ticket text', icon: <ListChecks /> },
@@ -152,6 +170,10 @@ function ToolPanel({ activeTool }: { activeTool: ToolId }) {
       return <RegexTool />;
     case 'api':
       return <ApiTool />;
+    case 'hubspot':
+      return <HubSpotDuplicatesTool />;
+    case 'bulk':
+      return <BulkUpdateTool />;
     case 'csv':
       return <CsvTool />;
     case 'sql':
@@ -169,11 +191,13 @@ function JsonTool() {
   const [input, setInput] = useState(sampleJson);
   const [output, setOutput] = useState('');
   const [status, setStatus] = useState('Paste JSON and format it.');
+  const stats = useMemo(() => getJsonStats(input), [input]);
 
-  const run = (mode: 'format' | 'minify') => {
+  const run = (mode: 'format' | 'minify' | 'sort') => {
     try {
       const parsed = JSON.parse(input);
-      setOutput(mode === 'format' ? JSON.stringify(parsed, null, 2) : JSON.stringify(parsed));
+      const nextValue = mode === 'sort' ? sortJsonKeys(parsed) : parsed;
+      setOutput(mode === 'minify' ? JSON.stringify(nextValue) : JSON.stringify(nextValue, null, 2));
       setStatus('Valid JSON');
     } catch (error) {
       setOutput('');
@@ -189,8 +213,29 @@ function JsonTool() {
         <>
           <ActionButton icon={<Wand2 />} label="Format" onClick={() => run('format')} />
           <ActionButton icon={<Code2 />} label="Minify" onClick={() => run('minify')} />
+          <ActionButton icon={<Columns3 />} label="Sort keys" onClick={() => run('sort')} />
           <CopyButton value={output} />
         </>
+      }
+      footer={
+        <div className="metric-row">
+          <div className="small-metric">
+            <span>Status</span>
+            <strong>{stats.status}</strong>
+          </div>
+          <div className="small-metric">
+            <span>Keys</span>
+            <strong>{stats.keys}</strong>
+          </div>
+          <div className="small-metric">
+            <span>Arrays</span>
+            <strong>{stats.arrays}</strong>
+          </div>
+          <div className="small-metric">
+            <span>Size</span>
+            <strong>{stats.size} chars</strong>
+          </div>
+        </div>
       }
     />
   );
@@ -288,8 +333,17 @@ function DiffTool() {
 function TimeZoneTool() {
   const nowLocal = new Date();
   const [date, setDate] = useState(nowLocal.toISOString().slice(0, 16));
-  const zones = ['Europe/Kyiv', 'Europe/London', 'America/New_York', 'America/Los_Angeles', 'Asia/Singapore'];
+  const zones: TimeZoneItem[] = [
+    { label: 'Kyiv', zone: 'Europe/Kyiv', note: 'Ukraine' },
+    { label: 'UTC', zone: 'UTC', note: 'Reference' },
+    { label: 'London', zone: 'Europe/London', note: 'UK' },
+    { label: 'EST / ET', zone: 'America/New_York', note: 'Eastern US' },
+    { label: 'CST / CT', zone: 'America/Chicago', note: 'Central US' },
+    { label: 'PST / PT', zone: 'America/Los_Angeles', note: 'Pacific US' },
+    { label: 'Singapore', zone: 'Asia/Singapore', note: 'APAC' },
+  ];
   const sourceDate = new Date(date);
+  const tableText = zones.map((item) => `${item.label}: ${formatDateInZone(sourceDate, item.zone)}`).join('\n');
 
   return (
     <section className="panel">
@@ -298,12 +352,15 @@ function TimeZoneTool() {
           Source time
           <input type="datetime-local" value={date} onChange={(event) => setDate(event.target.value)} />
         </label>
+        <ActionButton icon={<RefreshCw />} label="Now" onClick={() => setDate(new Date().toISOString().slice(0, 16))} />
+        <CopyButton value={tableText} />
       </div>
       <div className="timezone-grid">
-        {zones.map((zone) => (
-          <div className="metric-card" key={zone}>
-            <span>{zone}</span>
-            <strong>{formatDateInZone(sourceDate, zone)}</strong>
+        {zones.map((item) => (
+          <div className="metric-card" key={item.zone}>
+            <span>{item.label}</span>
+            <strong>{formatDateInZone(sourceDate, item.zone)}</strong>
+            <small>{item.note}</small>
           </div>
         ))}
       </div>
@@ -343,6 +400,7 @@ function ApiTool() {
   const [headers, setHeaders] = useState<ApiHeader[]>([{ key: 'Accept', value: 'application/json' }]);
   const [body, setBody] = useState('');
   const [response, setResponse] = useState('Response will appear here.');
+  const [history, setHistory] = useState<ApiHistoryItem[]>(() => readApiHistory());
   const [loading, setLoading] = useState(false);
 
   const sendRequest = async (event: FormEvent) => {
@@ -358,9 +416,16 @@ function ApiTool() {
       });
       const text = await res.text();
       const elapsed = Math.round(performance.now() - started);
+      const status = `HTTP ${res.status} ${res.statusText} (${elapsed} ms)`;
       setResponse(
-        `HTTP ${res.status} ${res.statusText} (${elapsed} ms)\n\n${tryPrettyJson(text)}`,
+        `${status}\n\n${tryPrettyJson(text)}`,
       );
+      const nextHistory = [
+        { method, url, status, createdAt: new Date().toLocaleString() },
+        ...history.filter((item) => !(item.method === method && item.url === url)),
+      ].slice(0, 8);
+      setHistory(nextHistory);
+      writeApiHistory(nextHistory);
     } catch (error) {
       setResponse(error instanceof Error ? error.message : 'Request failed');
     } finally {
@@ -404,6 +469,45 @@ function ApiTool() {
       <TwoPane
         left={<TextArea label="Body" value={body} onChange={setBody} />}
         right={<Output label="Response" value={response} />}
+        footer={
+          <div className="history-panel">
+            <div className="history-header">
+              <strong>Request history</strong>
+              <button
+                type="button"
+                className="icon-button"
+                title="Clear history"
+                onClick={() => {
+                  setHistory([]);
+                  writeApiHistory([]);
+                }}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+            <div className="history-list">
+              {history.length === 0 ? (
+                <span className="muted">No requests yet</span>
+              ) : (
+                history.map((item) => (
+                  <button
+                    type="button"
+                    className="history-item"
+                    key={`${item.method}-${item.url}-${item.createdAt}`}
+                    onClick={() => {
+                      setMethod(item.method);
+                      setUrl(item.url);
+                    }}
+                  >
+                    <strong>{item.method}</strong>
+                    <span>{item.url}</span>
+                    <small>{item.status}</small>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        }
       />
     </form>
   );
@@ -411,10 +515,23 @@ function ApiTool() {
 
 function CsvTool() {
   const [csv, setCsv] = useState('email,role,active\nana@example.com,Admin,true\nmax@example.com,User,false');
-  const table = useMemo(() => parseCsv(csv), [csv]);
+  const [delimiter, setDelimiter] = useState(',');
+  const table = useMemo(() => parseCsv(csv, delimiter), [csv, delimiter]);
+  const csvJson = useMemo(() => tableToObjects(table), [table]);
 
   return (
     <section className="panel">
+      <div className="toolbar">
+        <label className="field compact">
+          Delimiter
+          <select value={delimiter} onChange={(event) => setDelimiter(event.target.value)}>
+            <option value=",">Comma</option>
+            <option value=";">Semicolon</option>
+            <option value="	">Tab</option>
+          </select>
+        </label>
+        <CopyButton value={JSON.stringify(csvJson, null, 2)} />
+      </div>
       <TwoPane
         left={<TextArea label="CSV" value={csv} onChange={setCsv} />}
         right={
@@ -430,8 +547,96 @@ function CsvTool() {
                 ))}
               </tbody>
             </table>
+            <div className="table-footer">
+              {Math.max(table.length - 1, 0)} rows · {table[0]?.length ?? 0} columns
+            </div>
           </div>
         }
+      />
+    </section>
+  );
+}
+
+function HubSpotDuplicatesTool() {
+  const [csv, setCsv] = useState(
+    'recordId,email,company,phone\n101,ana@example.com,Acme,+15550001\n102,ana@example.com,Acme Ltd,+15550001\n103,max@example.com,Northwind,+15550002',
+  );
+  const [field, setField] = useState('email');
+  const table = useMemo(() => parseCsv(csv, ','), [csv]);
+  const headers = table[0] ?? [];
+  const duplicates = useMemo(() => findDuplicates(table, field), [table, field]);
+  const summary = duplicates.length
+    ? duplicates.map((group) => `${group.value}: ${group.rows.length} records (${group.rows.map((row) => row.recordId || row.id || 'no id').join(', ')})`).join('\n')
+    : 'No duplicates found for the selected field.';
+
+  return (
+    <section className="panel">
+      <div className="toolbar">
+        <label className="field wide">
+          Match field
+          <select value={field} onChange={(event) => setField(event.target.value)}>
+            {headers.map((header) => (
+              <option key={header} value={header}>
+                {header}
+              </option>
+            ))}
+          </select>
+        </label>
+        <CopyButton value={summary} />
+      </div>
+      <TwoPane
+        left={<TextArea label="HubSpot export CSV" value={csv} onChange={setCsv} />}
+        right={<Output label="Duplicate groups" value={summary} />}
+        footer={
+          <div className="metric-row">
+            <div className="small-metric">
+              <span>Records</span>
+              <strong>{Math.max(table.length - 1, 0)}</strong>
+            </div>
+            <div className="small-metric">
+              <span>Groups</span>
+              <strong>{duplicates.length}</strong>
+            </div>
+            <div className="small-metric">
+              <span>Duplicate records</span>
+              <strong>{duplicates.reduce((total, group) => total + group.rows.length, 0)}</strong>
+            </div>
+            <div className="small-metric">
+              <span>Field</span>
+              <strong>{field || '-'}</strong>
+            </div>
+          </div>
+        }
+      />
+    </section>
+  );
+}
+
+function BulkUpdateTool() {
+  const [csv, setCsv] = useState('id,lifecycle_stage,owner\n101,customer,ana@example.com\n102,lead,max@example.com');
+  const [idField, setIdField] = useState('id');
+  const table = useMemo(() => parseCsv(csv, ','), [csv]);
+  const headers = table[0] ?? [];
+  const payload = useMemo(() => buildBulkPayload(table, idField), [table, idField]);
+
+  return (
+    <section className="panel">
+      <div className="toolbar">
+        <label className="field wide">
+          Object ID field
+          <select value={idField} onChange={(event) => setIdField(event.target.value)}>
+            {headers.map((header) => (
+              <option key={header} value={header}>
+                {header}
+              </option>
+            ))}
+          </select>
+        </label>
+        <CopyButton value={payload} />
+      </div>
+      <TwoPane
+        left={<TextArea label="Update CSV" value={csv} onChange={setCsv} />}
+        right={<Output label="HubSpot batch payload" value={payload} />}
       />
     </section>
   );
@@ -553,7 +758,7 @@ function decodeJwt(token: string) {
     return JSON.stringify(
       {
         header: JSON.parse(base64UrlDecode(header)),
-        payload: JSON.parse(base64UrlDecode(payload)),
+        payload: enrichJwtPayload(JSON.parse(base64UrlDecode(payload))),
       },
       null,
       2,
@@ -633,7 +838,82 @@ function tryPrettyJson(text: string) {
   }
 }
 
-function parseCsv(input: string) {
+function readApiHistory() {
+  try {
+    return JSON.parse(localStorage.getItem('bizops-api-history') || '[]') as ApiHistoryItem[];
+  } catch {
+    return [];
+  }
+}
+
+function writeApiHistory(history: ApiHistoryItem[]) {
+  localStorage.setItem('bizops-api-history', JSON.stringify(history));
+}
+
+function getJsonStats(input: string) {
+  try {
+    const parsed = JSON.parse(input);
+    const stats = walkJson(parsed);
+    return {
+      status: 'Valid',
+      keys: String(stats.keys),
+      arrays: String(stats.arrays),
+      size: String(input.length),
+    };
+  } catch {
+    return {
+      status: 'Invalid',
+      keys: '0',
+      arrays: '0',
+      size: String(input.length),
+    };
+  }
+}
+
+function walkJson(value: unknown): { keys: number; arrays: number } {
+  if (Array.isArray(value)) {
+    return value.reduce(
+      (total, item) => {
+        const child = walkJson(item);
+        return { keys: total.keys + child.keys, arrays: total.arrays + child.arrays };
+      },
+      { keys: 0, arrays: 1 },
+    );
+  }
+  if (value && typeof value === 'object') {
+    return Object.values(value).reduce(
+      (total, item) => {
+        const child = walkJson(item);
+        return { keys: total.keys + child.keys, arrays: total.arrays + child.arrays };
+      },
+      { keys: Object.keys(value).length, arrays: 0 },
+    );
+  }
+  return { keys: 0, arrays: 0 };
+}
+
+function sortJsonKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortJsonKeys);
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, sortJsonKeys(item)]));
+  }
+  return value;
+}
+
+function enrichJwtPayload(payload: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(payload).map(([key, value]) => {
+      if ((key === 'iat' || key === 'exp' || key === 'nbf') && typeof value === 'number') {
+        return [key, `${value} (${new Date(value * 1000).toLocaleString()})`];
+      }
+      return [key, value];
+    }),
+  );
+}
+
+function parseCsv(input: string, delimiter: string) {
   return input
     .split(/\r?\n/)
     .filter(Boolean)
@@ -644,7 +924,7 @@ function parseCsv(input: string) {
       for (const char of line) {
         if (char === '"') {
           quoted = !quoted;
-        } else if (char === ',' && !quoted) {
+        } else if (char === delimiter && !quoted) {
           cells.push(current);
           current = '';
         } else {
@@ -654,6 +934,43 @@ function parseCsv(input: string) {
       cells.push(current);
       return cells;
     });
+}
+
+function tableToObjects(table: string[][]) {
+  const [headers = [], ...rows] = table;
+  return rows.map((row) => Object.fromEntries(headers.map((header, index) => [header || `column_${index + 1}`, row[index] ?? ''])));
+}
+
+function findDuplicates(table: string[][], field: string) {
+  const records = tableToObjects(table);
+  const groups = records.reduce<Record<string, Array<Record<string, string>>>>((acc, row) => {
+    const value = (row[field] || '').trim().toLowerCase();
+    if (!value) {
+      return acc;
+    }
+    acc[value] = [...(acc[value] || []), row];
+    return acc;
+  }, {});
+
+  return Object.entries(groups)
+    .filter(([, rows]) => rows.length > 1)
+    .map(([value, rows]) => ({ value, rows }));
+}
+
+function buildBulkPayload(table: string[][], idField: string) {
+  const rows = tableToObjects(table);
+  return JSON.stringify(
+    {
+      inputs: rows
+        .filter((row) => row[idField])
+        .map((row) => ({
+          id: row[idField],
+          properties: Object.fromEntries(Object.entries(row).filter(([key, value]) => key !== idField && value !== '')),
+        })),
+    },
+    null,
+    2,
+  );
 }
 
 function buildJiraDraft(notes: string) {

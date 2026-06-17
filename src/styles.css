@@ -296,6 +296,7 @@ select:focus {
 }
 
 .field input,
+.field select,
 .request-row input,
 .request-row select,
 .header-row input {
@@ -372,6 +373,40 @@ select:focus {
   font-size: 18px;
 }
 
+.metric-card small,
+.muted {
+  color: #66746e;
+  font-size: 12px;
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.small-metric {
+  display: flex;
+  min-height: 78px;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid #cfd8d2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.small-metric span {
+  color: #66746e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.small-metric strong {
+  color: #182026;
+  font-size: 20px;
+}
+
 .request-row {
   display: grid;
   grid-template-columns: 126px minmax(220px, 1fr) 112px;
@@ -390,6 +425,80 @@ select:focus {
 
 .table-wrap {
   padding: 0;
+}
+
+.table-footer {
+  position: sticky;
+  bottom: 0;
+  border-top: 1px solid #dce4df;
+  background: #ffffff;
+  padding: 9px 12px;
+  color: #66746e;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.history-panel {
+  border: 1px solid #cfd8d2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #edf1ee;
+  padding: 10px 12px;
+}
+
+.history-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) minmax(120px, auto);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #e0e8e3;
+  border-radius: 8px;
+  background: #f8faf8;
+  padding: 9px 10px;
+  color: #26312d;
+  text-align: left;
+}
+
+.history-item:hover {
+  background: #eef4f0;
+}
+
+.history-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item small {
+  color: #66746e;
+  text-align: right;
+}
+
+.icon-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #c7d2cc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #38514c;
+}
+
+.icon-button:hover {
+  background: #eef4f0;
 }
 
 table {
@@ -436,6 +545,15 @@ th {
 
   .timezone-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-row,
+  .history-item {
+    grid-template-columns: 1fr;
+  }
+
+  .history-item small {
+    text-align: left;
   }
 }
 

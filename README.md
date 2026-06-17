@@ -12,6 +12,8 @@ A local-first toolkit for day-to-day BizOps, RevOps, and admin work.
 - Time Zone Converter
 - Regex Tester
 - API Tester Lite
+- HubSpot Duplicate Finder
+- Bulk Update Builder
 - CSV Preview
 - SQL Formatter
 - Jira Assistant
@@ -42,4 +44,4 @@ npm run build
 
 ## Product direction
 
-The first version focuses on fast local utilities. Future versions can add HubSpot tools, saved API collections, Jira templates, encrypted token storage, Excel transforms, and desktop packaging with Tauri or Electron.
+The first version focuses on fast local utilities and practical HubSpot admin workflows. Future versions can add saved API collections, encrypted token storage, Excel transforms, workflow audits, sandbox-production comparison, and desktop packaging with Tauri or Electron.
