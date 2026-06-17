@@ -1,9 +1,11 @@
 import {
   Braces,
   CalendarClock,
+  CheckCircle2,
   Code2,
   Columns3,
   Copy,
+  FileCog,
   FileJson,
   Fingerprint,
   Globe2,
@@ -17,6 +19,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  ShieldCheck,
   Table2,
   TerminalSquare,
   Trash2,
@@ -40,6 +43,10 @@ type ToolId =
   | 'sql'
   | 'hubspot'
   | 'bulk'
+  | 'property'
+  | 'access'
+  | 'cleaner'
+  | 'sop'
   | 'jira'
   | 'email'
   | 'teams';
@@ -86,8 +93,12 @@ const tools: Array<{
   { id: 'timezone', title: 'Time Zones', section: 'Utilities', description: 'Convert work times', icon: <CalendarClock /> },
   { id: 'regex', title: 'Regex Tester', section: 'Data', description: 'Match patterns quickly', icon: <Search /> },
   { id: 'api', title: 'API Tester', section: 'API', description: 'Send REST requests', icon: <Send /> },
+  { id: 'cleaner', title: 'CSV Cleaner', section: 'Data', description: 'Normalize and validate CSV', icon: <CheckCircle2 /> },
   { id: 'hubspot', title: 'HubSpot Duplicates', section: 'HubSpot', description: 'Find duplicate records', icon: <UsersRound /> },
   { id: 'bulk', title: 'Bulk Update Builder', section: 'HubSpot', description: 'CSV to update payload', icon: <Layers3 /> },
+  { id: 'property', title: 'Property Builder', section: 'HubSpot', description: 'Create property payloads', icon: <FileCog /> },
+  { id: 'access', title: 'Access Request', section: 'BizOps', description: 'Draft access requests', icon: <ShieldCheck /> },
+  { id: 'sop', title: 'SOP Generator', section: 'BizOps', description: 'Turn notes into SOPs', icon: <ListChecks /> },
   { id: 'csv', title: 'CSV Preview', section: 'Data', description: 'Inspect CSV rows', icon: <Table2 /> },
   { id: 'sql', title: 'SQL Formatter', section: 'Data', description: 'Clean up SQL queries', icon: <TerminalSquare /> },
   { id: 'jira', title: 'Jira Assistant', section: 'Writing', description: 'Comments and descriptions', icon: <ListChecks /> },
@@ -174,10 +185,18 @@ function ToolPanel({ activeTool }: { activeTool: ToolId }) {
       return <RegexTool />;
     case 'api':
       return <ApiTool />;
+    case 'cleaner':
+      return <CsvCleanerTool />;
     case 'hubspot':
       return <HubSpotDuplicatesTool />;
     case 'bulk':
       return <BulkUpdateTool />;
+    case 'property':
+      return <PropertyBuilderTool />;
+    case 'access':
+      return <AccessRequestTool />;
+    case 'sop':
+      return <SopGeneratorTool />;
     case 'csv':
       return <CsvTool />;
     case 'sql':
@@ -563,6 +582,61 @@ function CsvTool() {
   );
 }
 
+function CsvCleanerTool() {
+  const [csv, setCsv] = useState('email,company,phone\n Ana@Example.COM , Acme Inc , +1 555 001 \nana@example.com,Acme Inc,+1555001\nbad-email,Northwind,');
+  const [requiredFields, setRequiredFields] = useState('email,company');
+  const [lowercaseEmails, setLowercaseEmails] = useState(true);
+  const [dedupeField, setDedupeField] = useState('email');
+  const result = useMemo(
+    () => cleanCsv(csv, { requiredFields, lowercaseEmails, dedupeField }),
+    [csv, requiredFields, lowercaseEmails, dedupeField],
+  );
+
+  return (
+    <section className="panel">
+      <div className="toolbar">
+        <label className="field wide">
+          Required fields
+          <input value={requiredFields} onChange={(event) => setRequiredFields(event.target.value)} />
+        </label>
+        <label className="field wide">
+          Dedupe field
+          <input value={dedupeField} onChange={(event) => setDedupeField(event.target.value)} />
+        </label>
+        <label className="toggle-field">
+          <input type="checkbox" checked={lowercaseEmails} onChange={(event) => setLowercaseEmails(event.target.checked)} />
+          Lowercase emails
+        </label>
+        <CopyButton value={result.cleanedCsv} />
+      </div>
+      <TwoPane
+        left={<TextArea label="Raw CSV" value={csv} onChange={setCsv} />}
+        right={<Output label="Cleaned CSV" value={result.cleanedCsv} />}
+        footer={
+          <div className="metric-row">
+            <div className="small-metric">
+              <span>Rows</span>
+              <strong>{result.rowCount}</strong>
+            </div>
+            <div className="small-metric">
+              <span>Removed duplicates</span>
+              <strong>{result.removedDuplicates}</strong>
+            </div>
+            <div className="small-metric">
+              <span>Missing required</span>
+              <strong>{result.missingRequired}</strong>
+            </div>
+            <div className="small-metric">
+              <span>Invalid emails</span>
+              <strong>{result.invalidEmails}</strong>
+            </div>
+          </div>
+        }
+      />
+    </section>
+  );
+}
+
 function HubSpotDuplicatesTool() {
   const [csv, setCsv] = useState(
     'recordId,email,company,phone\n101,ana@example.com,Acme,+15550001\n102,ana@example.com,Acme Ltd,+15550001\n103,max@example.com,Northwind,+15550002',
@@ -615,6 +689,126 @@ function HubSpotDuplicatesTool() {
         }
       />
     </section>
+  );
+}
+
+function PropertyBuilderTool() {
+  const [label, setLabel] = useState('Customer Segment');
+  const [name, setName] = useState('customer_segment');
+  const [groupName, setGroupName] = useState('contactinformation');
+  const [type, setType] = useState('enumeration');
+  const [fieldType, setFieldType] = useState('select');
+  const [description, setDescription] = useState('Used by BizOps to segment customers for reporting and workflows.');
+  const [options, setOptions] = useState('Enterprise\nMid Market\nSMB');
+  const output = useMemo(
+    () => buildPropertyOutput({ label, name, groupName, type, fieldType, description, options }),
+    [label, name, groupName, type, fieldType, description, options],
+  );
+
+  return (
+    <section className="panel">
+      <div className="form-grid">
+        <label className="field">
+          Label
+          <input value={label} onChange={(event) => setLabel(event.target.value)} />
+        </label>
+        <label className="field">
+          Internal name
+          <input value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
+        <label className="field">
+          Group
+          <input value={groupName} onChange={(event) => setGroupName(event.target.value)} />
+        </label>
+        <label className="field">
+          Type
+          <select value={type} onChange={(event) => setType(event.target.value)}>
+            <option value="string">string</option>
+            <option value="number">number</option>
+            <option value="date">date</option>
+            <option value="datetime">datetime</option>
+            <option value="bool">bool</option>
+            <option value="enumeration">enumeration</option>
+          </select>
+        </label>
+        <label className="field">
+          Field type
+          <select value={fieldType} onChange={(event) => setFieldType(event.target.value)}>
+            <option value="text">text</option>
+            <option value="textarea">textarea</option>
+            <option value="number">number</option>
+            <option value="date">date</option>
+            <option value="checkbox">checkbox</option>
+            <option value="select">select</option>
+            <option value="radio">radio</option>
+            <option value="booleancheckbox">booleancheckbox</option>
+          </select>
+        </label>
+      </div>
+      <TwoPane
+        left={
+          <>
+            <TextArea label="Description" value={description} onChange={setDescription} />
+            <TextArea label="Options, one per line" value={options} onChange={setOptions} />
+          </>
+        }
+        right={<Output label="Property payload and checklist" value={output} />}
+        actions={<CopyButton value={output} />}
+      />
+    </section>
+  );
+}
+
+function AccessRequestTool() {
+  const [requester, setRequester] = useState('User Name');
+  const [system, setSystem] = useState('HubSpot');
+  const [access, setAccess] = useState('View and edit access to Contacts');
+  const [reason, setReason] = useState('Needed to support customer data cleanup and validate recent updates.');
+  const [link, setLink] = useState('https://example.atlassian.net/browse/OPS-123');
+  const output = useMemo(
+    () => buildAccessRequest({ requester, system, access, reason, link }),
+    [requester, system, access, reason, link],
+  );
+
+  return (
+    <section className="panel">
+      <div className="form-grid">
+        <label className="field">
+          Requester
+          <input value={requester} onChange={(event) => setRequester(event.target.value)} />
+        </label>
+        <label className="field">
+          System
+          <input value={system} onChange={(event) => setSystem(event.target.value)} />
+        </label>
+        <label className="field">
+          Access required
+          <input value={access} onChange={(event) => setAccess(event.target.value)} />
+        </label>
+        <label className="field">
+          Link
+          <input value={link} onChange={(event) => setLink(event.target.value)} />
+        </label>
+      </div>
+      <TwoPane
+        left={<TextArea label="Business reason" value={reason} onChange={setReason} />}
+        right={<Output label="Access request draft" value={output} />}
+        actions={<CopyButton value={output} />}
+      />
+    </section>
+  );
+}
+
+function SopGeneratorTool() {
+  const [notes, setNotes] = useState('Create a HubSpot property in Sandbox first. Validate field type and options. After approval, recreate the same property in Production. Add Jira comment with details.');
+  const output = useMemo(() => buildSop(notes), [notes]);
+
+  return (
+    <TwoPane
+      left={<TextArea label="Process notes" value={notes} onChange={setNotes} />}
+      right={<Output label="SOP draft" value={output} />}
+      actions={<CopyButton value={output} />}
+    />
   );
 }
 
@@ -960,6 +1154,189 @@ function parseCsv(input: string, delimiter: string) {
 function tableToObjects(table: string[][]) {
   const [headers = [], ...rows] = table;
   return rows.map((row) => Object.fromEntries(headers.map((header, index) => [header || `column_${index + 1}`, row[index] ?? ''])));
+}
+
+function cleanCsv(
+  input: string,
+  options: { requiredFields: string; lowercaseEmails: boolean; dedupeField: string },
+) {
+  const table = parseCsv(input, ',');
+  const [headers = [], ...rows] = table;
+  const required = options.requiredFields
+    .split(',')
+    .map((field) => field.trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  let removedDuplicates = 0;
+  let missingRequired = 0;
+  let invalidEmails = 0;
+
+  const cleanedRows = rows
+    .map((row) => {
+      const normalized = headers.map((header, index) => {
+        const value = (row[index] ?? '').trim().replace(/\s+/g, ' ');
+        return options.lowercaseEmails && header.toLowerCase().includes('email') ? value.toLowerCase() : value;
+      });
+      const record = Object.fromEntries(headers.map((header, index) => [header, normalized[index] ?? '']));
+      if (required.some((field) => !record[field])) {
+        missingRequired += 1;
+      }
+      Object.entries(record).forEach(([key, value]) => {
+        if (key.toLowerCase().includes('email') && value && !isValidEmail(value)) {
+          invalidEmails += 1;
+        }
+      });
+      return normalized;
+    })
+    .filter((row) => {
+      const dedupeIndex = headers.indexOf(options.dedupeField);
+      if (dedupeIndex === -1) {
+        return true;
+      }
+      const value = row[dedupeIndex]?.toLowerCase();
+      if (!value) {
+        return true;
+      }
+      if (seen.has(value)) {
+        removedDuplicates += 1;
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
+
+  return {
+    cleanedCsv: [headers, ...cleanedRows].map(toCsvLine).join('\n'),
+    rowCount: String(cleanedRows.length),
+    removedDuplicates: String(removedDuplicates),
+    missingRequired: String(missingRequired),
+    invalidEmails: String(invalidEmails),
+  };
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function toCsvLine(row: string[]) {
+  return row.map((cell) => (cell.includes(',') || cell.includes('"') ? `"${cell.replace(/"/g, '""')}"` : cell)).join(',');
+}
+
+function buildPropertyOutput({
+  label,
+  name,
+  groupName,
+  type,
+  fieldType,
+  description,
+  options,
+}: {
+  label: string;
+  name: string;
+  groupName: string;
+  type: string;
+  fieldType: string;
+  description: string;
+  options: string;
+}) {
+  const optionValues = options
+    .split(/\r?\n/)
+    .map((option) => option.trim())
+    .filter(Boolean);
+  const payload = {
+    name,
+    label,
+    type,
+    fieldType,
+    groupName,
+    description,
+    options: optionValues.map((option, index) => ({
+      label: option,
+      value: option.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
+      displayOrder: index,
+      hidden: false,
+    })),
+  };
+
+  return `HubSpot property payload
+${JSON.stringify(payload, null, 2)}
+
+Implementation checklist
+- Create in Sandbox first
+- Confirm field type, internal name, and options
+- Validate visibility and permissions
+- Recreate in Production after approval
+- Add Jira comment with property name, type, and environments
+
+Jira comment
+The property has been prepared for Sandbox and Production.
+
+Details:
+- Label: ${label}
+- Internal name: ${name}
+- Type: ${type}
+- Field type: ${fieldType}
+- Group: ${groupName}
+
+Please let me know if you notice any issues.`;
+}
+
+function buildAccessRequest({
+  requester,
+  system,
+  access,
+  reason,
+  link,
+}: {
+  requester: string;
+  system: string;
+  access: string;
+  reason: string;
+  link: string;
+}) {
+  return `Access request
+
+Requester:
+${requester}
+
+System:
+${system}
+
+Access required:
+${access}
+
+Business reason:
+${reason}
+
+Related link:
+${link || 'Please provide the link'}
+
+Approval / next step:
+Could you please confirm whether this access should be granted and whether any additional approval is required?`;
+}
+
+function buildSop(notes: string) {
+  const steps = notes
+    .split(/[.;\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return `Purpose
+Document the process so the same request can be handled consistently.
+
+When to Use
+Use this SOP when a similar BizOps or HubSpot admin request is received.
+
+Steps
+${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}
+
+Notes
+- Keep changes limited to the approved scope
+- Add screenshots or links when they help future review
+- No changes should be made in Production before validation when Sandbox is available
+
+Escalation
+Escalate if permissions are missing, the request changes scope, or the expected behavior is unclear.`;
 }
 
 function findDuplicates(table: string[][], field: string) {

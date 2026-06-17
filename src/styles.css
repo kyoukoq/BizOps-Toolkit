@@ -299,6 +299,28 @@ select:focus {
   gap: 6px;
 }
 
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.toggle-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  color: #51615b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.toggle-field input {
+  width: 16px;
+  height: 16px;
+  accent-color: #174c4f;
+}
+
 .field input,
 .field select,
 .request-row input,
@@ -543,7 +565,8 @@ th {
 
   .two-pane,
   .request-row,
-  .header-row {
+  .header-row,
+  .form-grid {
     grid-template-columns: 1fr;
   }
 

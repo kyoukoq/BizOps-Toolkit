@@ -12,8 +12,12 @@ A local-first toolkit for day-to-day BizOps, RevOps, and admin work.
 - Time Zone Converter
 - Regex Tester
 - API Tester Lite
+- CSV Cleaner
 - HubSpot Duplicate Finder
 - Bulk Update Builder
+- HubSpot Property Builder
+- Access Request Builder
+- SOP Generator
 - CSV Preview
 - SQL Formatter
 - Jira Assistant
