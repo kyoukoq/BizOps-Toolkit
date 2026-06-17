@@ -12,6 +12,7 @@ import {
   Layers3,
   ListChecks,
   Mail,
+  MessageSquareText,
   Play,
   RefreshCw,
   Search,
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react';
 import { FormEvent, ReactNode, useMemo, useState } from 'react';
 import { format as formatSql } from 'sql-formatter';
+import { buildStyledDraft, buildStyleGuideSummary, type WritingFormat } from './writingProfile';
 
 type ToolId =
   | 'json'
@@ -39,7 +41,8 @@ type ToolId =
   | 'hubspot'
   | 'bulk'
   | 'jira'
-  | 'email';
+  | 'email'
+  | 'teams';
 
 type ApiHeader = {
   key: string;
@@ -87,8 +90,9 @@ const tools: Array<{
   { id: 'bulk', title: 'Bulk Update Builder', section: 'HubSpot', description: 'CSV to update payload', icon: <Layers3 /> },
   { id: 'csv', title: 'CSV Preview', section: 'Data', description: 'Inspect CSV rows', icon: <Table2 /> },
   { id: 'sql', title: 'SQL Formatter', section: 'Data', description: 'Clean up SQL queries', icon: <TerminalSquare /> },
-  { id: 'jira', title: 'Jira Assistant', section: 'Writing', description: 'Draft ticket text', icon: <ListChecks /> },
+  { id: 'jira', title: 'Jira Assistant', section: 'Writing', description: 'Comments and descriptions', icon: <ListChecks /> },
   { id: 'email', title: 'Email Assistant', section: 'Writing', description: 'Professional replies', icon: <Mail /> },
+  { id: 'teams', title: 'Teams Message', section: 'Writing', description: 'Short internal updates', icon: <MessageSquareText /> },
 ];
 
 function App() {
@@ -179,9 +183,11 @@ function ToolPanel({ activeTool }: { activeTool: ToolId }) {
     case 'sql':
       return <SqlTool />;
     case 'jira':
-      return <WritingTool kind="jira" />;
+      return <WritingTool defaultFormat="jira-comment" />;
     case 'email':
-      return <WritingTool kind="email" />;
+      return <WritingTool defaultFormat="email-reply" />;
+    case 'teams':
+      return <WritingTool defaultFormat="teams-message" />;
     default:
       return null;
   }
@@ -668,16 +674,31 @@ function SqlTool() {
   );
 }
 
-function WritingTool({ kind }: { kind: 'jira' | 'email' }) {
+function WritingTool({ defaultFormat }: { defaultFormat: WritingFormat }) {
   const [input, setInput] = useState('User cannot update a HubSpot property because the field is locked by a workflow.');
-  const output = useMemo(() => (kind === 'jira' ? buildJiraDraft(input) : buildEmailDraft(input)), [input, kind]);
+  const [format, setFormat] = useState<WritingFormat>(defaultFormat);
+  const output = useMemo(() => buildStyledDraft(format, input), [input, format]);
 
   return (
-    <TwoPane
-      left={<TextArea label="Notes" value={input} onChange={setInput} />}
-      right={<Output label={kind === 'jira' ? 'Jira Draft' : 'Email Draft'} value={output} />}
-      actions={<CopyButton value={output} />}
-    />
+    <section className="panel">
+      <div className="toolbar">
+        <label className="field wide">
+          Format
+          <select value={format} onChange={(event) => setFormat(event.target.value as WritingFormat)}>
+            <option value="jira-comment">Jira comment</option>
+            <option value="jira-description">Jira description</option>
+            <option value="email-reply">Email reply</option>
+            <option value="teams-message">Teams message</option>
+          </select>
+        </label>
+        <CopyButton value={output} />
+      </div>
+      <TwoPane
+        left={<TextArea label="Raw notes" value={input} onChange={setInput} />}
+        right={<Output label="Styled draft" value={output} />}
+        footer={<Output label="Style profile" value={buildStyleGuideSummary()} compact />}
+      />
+    </section>
   );
 }
 
@@ -713,11 +734,11 @@ function TextArea({ label, value, onChange }: { label: string; value: string; on
   );
 }
 
-function Output({ label, value }: { label: string; value: string }) {
+function Output({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
   return (
     <label className="editor">
       <span>{label}</span>
-      <pre className="output">{value}</pre>
+      <pre className={compact ? 'output compact-output' : 'output'}>{value}</pre>
     </label>
   );
 }
@@ -971,34 +992,6 @@ function buildBulkPayload(table: string[][], idField: string) {
     null,
     2,
   );
-}
-
-function buildJiraDraft(notes: string) {
-  return `Summary
-Investigate reported BizOps issue
-
-Description
-${notes}
-
-Impact
-User workflow is blocked or slowed down until the configuration is reviewed.
-
-Acceptance Criteria
-- Root cause is identified
-- Required HubSpot/Jira/API configuration is documented
-- User receives a clear update with next steps`;
-}
-
-function buildEmailDraft(notes: string) {
-  return `Hi,
-
-Thanks for flagging this. I reviewed the details:
-
-${notes}
-
-I will check the related configuration and confirm the next steps. If I need additional details, I will follow up with a specific question.
-
-Best regards`;
 }
 
 export { App };

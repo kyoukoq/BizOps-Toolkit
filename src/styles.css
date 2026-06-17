@@ -248,6 +248,10 @@ select:focus {
   min-height: 420px;
 }
 
+.compact-output {
+  min-height: 180px;
+}
+
 .secondary-button,
 .primary-button,
 .ghost-button {
